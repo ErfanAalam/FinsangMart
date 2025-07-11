@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.anonymous.FinsangMart"
     },
     "web": {
       "bundler": "metro",
@@ -28,7 +29,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
@@ -37,6 +38,10 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "SUPABASE_URL": "https://gqpopdtkvjjrpwkuzude.supabase.co",
+      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcG9wZHRrdmpqcnB3a3V6dWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEyNjEzNTgsImV4cCI6MjA2NjgzNzM1OH0.FCpJxd3MFs_CUne8xdcfpst8QWy_YEzzRkq4VvDLigs"
     }
   }
 }

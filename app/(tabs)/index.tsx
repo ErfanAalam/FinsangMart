@@ -1,75 +1,116 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import Colors from '@/constants/Colors';
+import { useAuth } from '@/Contexts/AuthContexts';
+import { useUser } from '@/Contexts/UserContext';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function HomeScreen() {
+  const { logout, setIsLoggedIn } = useAuth();
+  const { userDetails } = useUser();
+  console.log(userDetails);
+  const router = useRouter();
+  const handleLogout = async () => {
+    await logout();
+    setIsLoggedIn(false);
+    console.log('Logged out, navigating to /');
+    router.replace('/Login/login');
+  };
+
+  // Get initials and username
+  const username = userDetails?.name || 'User';
+  const initials = username.slice(0, 2).toUpperCase();
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      {/* Navbar */}
+      <View style={styles.header}>
+        {/* Profile section */}
+        <TouchableOpacity style={styles.profileSection} activeOpacity={0.7} onPress={() => router.push('/profile')}>
+          {/* Profile Initials Circle */}
+          <View style={styles.profileCircle}>
+            <Text style={styles.profileInitials}>{initials}</Text>
+          </View>
+          {/* Hello and Username */}
+          <View>
+            <Text style={styles.helloText}>Hello</Text>
+            <Text style={styles.usernameText}>{username}</Text>
+          </View>
+        </TouchableOpacity>
+        {/* Right side icons */}
+        <View style={styles.iconSection}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => { /* Help action */ }}>
+            <MaterialIcons name="help-outline" size={28} color={Colors.white} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { /* Bell action */ }}>
+            <Ionicons name="notifications-outline" size={28} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
+      </View>
+      {/* Main Content */}
+      <View style={styles.mainContent}>
+        <Text>Home Screen</Text>
+        <TouchableOpacity onPress={handleLogout}>
+          <Text>Logout</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    paddingBottom: 16,
+    backgroundColor: Colors.primary,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  profileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  profileCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: Colors.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  profileInitials: {
+    color: Colors.white,
+    fontWeight: 'bold',
+    fontSize: 20,
+  },
+  helloText: {
+    fontSize: 14,
+    color: Colors.white,
+  },
+  usernameText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.white,
+  },
+  iconSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    marginRight: 16,
+  },
+  mainContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
