@@ -20,7 +20,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="products"
         options={{
-          title: 'Products',
+          title: 'Product Categories',
           tabBarIcon: ({ color }) => <FontAwesome size={28} name="th-large" color={color} />,
           headerTintColor: 'white',
           headerStyle: {
