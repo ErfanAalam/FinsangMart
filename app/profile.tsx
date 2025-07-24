@@ -56,7 +56,7 @@ export default function ProfileScreen() {
         <Text style={styles.profilePhone}>{phone}</Text>
       </View>
 
-      {/* ZET Partner Code Section */}
+      {/* Finsang Partner Code Section */}
       <View style={styles.partnerCodeSection}>
         <View>
           <Text style={styles.partnerCodeLabel}>My FinsangMart Code</Text>
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ZET Partner Kit Section */}
+      {/* finsang Partner Kit Section */}
       <View style={styles.partnerKitSection}>
         <TouchableOpacity style={styles.partnerKitCard} onPress={() => router.push('/VisitingCard')}>
           <Ionicons name="card-outline" size={24} color={Colors.primary} />

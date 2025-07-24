@@ -50,12 +50,12 @@ export default function ProductTerms() {
     ? product.terms
     : [
         'Bank runs certain internal policy criteria to select a customer for issuing credit cards',
-        'Customer has to apply for IndusInd Bank Credit Cards using your ZET Partner Link',
+        'Customer has to apply for IndusInd Bank Credit Cards using your Finsang Partner Link',
         'Customer should be new to IndusInd Bank Credit Card',
         'Customer should have an existing credit card',
         'Customers must complete the application on their device. If 2 customers use the same device to complete the application, then no commission will be paid',
         'Customer has to complete the application within 30 days of starting the application process',
-        'If any kind of fraud is suspected, ZET Partner will deactivate your account and freeze your earnings',
+        'If any kind of fraud is suspected, Finsang Partner will deactivate your account and freeze your earnings',
         'Starting 1st September 2024, Vistara co-branded credit cards will no longer be eligible for payout.',
       ];
 
@@ -87,8 +87,8 @@ export default function ProductTerms() {
               <Text style={styles.payoutDesc}>BEGINNER benefit</Text>
             </View>
           </View>
-          <Text style={styles.payoutNote}>* Minimum base earnings should be ₹250 to get ZET Coins</Text>
-          <Text style={styles.payoutNote}>* Maximum 10,000 ZET Coins can be earned per week</Text>
+          <Text style={styles.payoutNote}>* Minimum base earnings should be ₹250 to get Finsang Coins</Text>
+          <Text style={styles.payoutNote}>* Maximum 10,000 Finsang Coins can be earned per week</Text>
         </View>
 
         {/* Terms Section */}

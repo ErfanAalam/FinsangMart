@@ -4,7 +4,7 @@ import Colors from '../../constants/Colors';
 
 export default function TabLayout() {
   return (
-    <Tabs screenOptions={{ tabBarActiveTintColor: Colors.primary }}>
+    <Tabs screenOptions={{ tabBarActiveTintColor: Colors.primary, tabBarShowLabel: true }}>
       <Tabs.Screen
         name="index"
         options={{
@@ -14,29 +14,45 @@ export default function TabLayout() {
           // headerStyle: {
           //   backgroundColor: Colors.primary,
           // },
-          headerShown:false
+          headerShown: false
         }}
       />
       <Tabs.Screen
         name="products"
         options={{
-          title: 'Product Categories',
+          title: 'Products',
           tabBarIcon: ({ color }) => <FontAwesome size={28} name="th-large" color={color} />,
           headerTintColor: 'white',
           headerStyle: {
-           backgroundColor: Colors.primary,
+            backgroundColor: Colors.primary,
           },
+          headerLeft: () => (
+            <FontAwesome
+              name="search"
+              size={25}
+              color={'white'}
+              style={{ marginLeft: 15, padding: 10 }}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="grow"
         options={{
-          title: 'Grow',
+          title: 'Grow your Customers',
           tabBarIcon: ({ color }) => <FontAwesome size={28} name="dollar" color={color} />,
           headerTintColor: 'white',
           headerStyle: {
-           backgroundColor: Colors.primary,
+            backgroundColor: Colors.primary,
           },
+          headerLeft: () => (
+            <FontAwesome
+              name="line-chart"
+              size={25}
+              color={'white'}
+              style={{ marginLeft: 15, padding: 10 }}
+            />
+          ),
         }}
       />
       <Tabs.Screen
@@ -46,8 +62,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <FontAwesome size={28} name="book" color={color} />,
           headerTintColor: 'white',
           headerStyle: {
-           backgroundColor: Colors.primary,
+            backgroundColor: Colors.primary,
           },
+          headerLeft: () => (
+            <FontAwesome
+              name="question-circle"
+              size={25}
+              color={'white'}
+              style={{ marginLeft: 15, padding: 10 }}
+            />
+          ),
         }}
       />
       <Tabs.Screen
@@ -57,8 +81,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <FontAwesome size={28} name="users" color={color} />,
           headerTintColor: 'white',
           headerStyle: {
-           backgroundColor: Colors.primary,
+            backgroundColor: Colors.primary,
           },
+          headerLeft: () => (
+            <FontAwesome
+              name="user-plus"
+              size={25}
+              color={'white'}
+              style={{ marginLeft: 15, padding: 10 }}
+            />
+          ),
         }}
       />
     </Tabs>

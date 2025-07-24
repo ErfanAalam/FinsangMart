@@ -1,8 +1,10 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Animated,
+  BackHandler,
   StatusBar,
   StyleSheet,
   Text,
@@ -67,6 +69,15 @@ export default function Login() {
     }
     return () => clearInterval(interval);
   }, [countdown]);
+
+  // Prevent hardware back button on login screen
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => true; // Prevent going back
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [])
+  );
 
   const handleVerifyNumber = async () => {
     if (!phoneNumber || phoneNumber.length < 10) {
@@ -282,7 +293,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'transparent',
-    background: `linear-gradient(135deg,${Colors.primary} 0%, ${Colors.background} 100%)`,
   },
   backgroundCircle1: {
     position: 'absolute',

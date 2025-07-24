@@ -1,4 +1,5 @@
 import Colors from '@/constants/Colors';
+import { useAuth } from '@/Contexts/AuthContexts';
 import { useUser } from '@/Contexts/UserContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -30,10 +31,11 @@ type UserDetailsWithImage = {
 
 export default function MyAccountScreen() {
     const router = useRouter()
+    const {logout} = useAuth()
     // Use type assertion to allow profileimage property
     const { userDetails, updateUserDetails, uploadProfileImage, fetchUserDetails } = useUser() as { userDetails: UserDetailsWithImage | null, updateUserDetails: (u: any) => Promise<void>, uploadProfileImage: (u: string, oldUrl?: string) => Promise<string | null>, fetchUserDetails: () => Promise<void> };
-    const [editing, setEditing] = useState(false);
-    const [profileImage, setProfileImage] = useState<string | null>(null);
+    // const [editing, setEditing] = useState(false);
+    // const [profileImage, setProfileImage] = useState<string | null>(null);
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [phoneModalVisible, setPhoneModalVisible] = useState(false);
     const [otpModalVisible, setOtpModalVisible] = useState(false);
@@ -137,6 +139,11 @@ export default function MyAccountScreen() {
         setEditModalVisible(true);
     };
 
+    const handleLogout = async () => {
+        await logout();
+        router.replace('/Login/login');
+    }
+
     const handleEditPhone = () => {
         setPhoneModalVisible(true);
     };
@@ -220,7 +227,7 @@ export default function MyAccountScreen() {
                 </View>
                 {/* Logout Button */}
                 <View style={styles.logoutSection}>
-                    <TouchableOpacity style={styles.logoutBtn}>
+                    <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
                         <Ionicons name="power" size={24} color="#E53935" style={styles.logoutBtnIcon} />
                         <Text style={styles.logoutBtnText}>Logout</Text>
                     </TouchableOpacity>

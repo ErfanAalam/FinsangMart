@@ -1,11 +1,11 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { BadgePercent, CheckSquare, Info, Search, Share2 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Colors from '../../../constants/Colors';
+import { useUser } from '../../../Contexts/UserContext';
+import { shareProduct } from '../../../lib/shareUtils';
 import { supabase } from '../../../lib/supabase';
-
-const CARD_IMAGE = require('../../../assets/images/CardTemplate.png');
 
 export default function ProductListByCategory() {
   const { category } = useLocalSearchParams();
@@ -16,6 +16,10 @@ export default function ProductListByCategory() {
   const [sortAsc, setSortAsc] = useState(true);
   const [filterValues, setFilterValues] = useState<any>({});
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
+  const { userDetails } = useUser();
+  const [searchText, setSearchText] = useState('');
+  const [selectedForCompare, setSelectedForCompare] = useState<any[]>([]);
+  const [showCompareLimitMsg, setShowCompareLimitMsg] = useState(false);
 
   // Gradient colors that repeat every 4 cards
   const gradientColors = [
@@ -84,6 +88,40 @@ export default function ProductListByCategory() {
     setFilteredProducts(filtered);
   }, [products, multiFilterValues]);
 
+  // Search filtering logic
+  useEffect(() => {
+    let filtered = products;
+    if (searchText.trim() !== '') {
+      const search = searchText.trim().toLowerCase();
+      filtered = filtered.filter((p) => {
+        const nameMatch = (p.card_name || '').toLowerCase().includes(search);
+        const bankMatch = (p.bank_name || '').toLowerCase().includes(search);
+        const payoutMatch = (p.payout_str || '').toLowerCase().includes(search);
+        const benefitsMatch = Array.isArray(p.benefits) && p.benefits.some((b: string) => b.toLowerCase().includes(search));
+        return nameMatch || bankMatch || payoutMatch || benefitsMatch;
+      });
+    }
+    // Also apply multiFilterValues
+    Object.entries(multiFilterValues).forEach(([key, values]) => {
+      if (Array.isArray(values) && values.length > 0) {
+        if (key === 'benefits') {
+          filtered = filtered.filter(p => Array.isArray(p.benefits) && values.some(v => p.benefits.includes(v)));
+        } else if (key === 'employment_type') {
+          filtered = filtered.filter(p =>
+            p.eligibility && values.some((v: string) => Object.keys(p.eligibility).includes(v))
+          );
+        } else if (key === 'income_range') {
+          filtered = filtered.filter(p =>
+            p.eligibility && Object.values(p.eligibility).some((e: any) => values.includes(e.income))
+          );
+        } else {
+          filtered = filtered.filter(p => values.includes(p[key]));
+        }
+      }
+    });
+    setFilteredProducts(filtered);
+  }, [products, searchText, multiFilterValues]);
+
   // Checkbox toggle handler
   const toggleFilterValue = (catKey: string, value: string) => {
     setMultiFilterValues((prev: any) => {
@@ -130,193 +168,299 @@ export default function ProductListByCategory() {
     if (category) fetchProducts();
   }, [category]);
 
+  // Handler for selecting/deselecting a card for compare
+  const handleCompareSelect = (product: any) => {
+    const isSelected = selectedForCompare.some((c) => c.id === product.id);
+    if (isSelected) {
+      setSelectedForCompare(selectedForCompare.filter((c) => c.id !== product.id));
+    } else {
+      if (selectedForCompare.length >= 2) {
+        setShowCompareLimitMsg(true);
+        setTimeout(() => setShowCompareLimitMsg(false), 2000);
+        return;
+      }
+      setSelectedForCompare([...selectedForCompare, product]);
+    }
+  };
+
   if (loading) {
     return (
-      <View style={styles.centered}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
+        <Text style={styles.loadingText}>Loading products...</Text>
+      </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }}>
-      {/* Header Row */}
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <View style={styles.backIconCircle}>
-            <Text style={styles.backIcon}>{'←'}</Text>
+            <Text style={styles.backIcon}>←</Text>
           </View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{category}</Text>
       </View>
-      {/* Sort and Filter Row */}
-      <View style={styles.sortFilterRow}>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => {
-          setSortAsc((asc) => {
-            setProducts(prev => [...prev].sort((a, b) => {
-              const cmp = (a.card_name || '').localeCompare(b.card_name || '');
-              return asc ? cmp : -cmp;
-            }));
-            return !asc;
-          });
-        }}>
-          <Text style={styles.headerBtnText}>Sort by {sortAsc ? '▲' : '▼'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => setFilterModalVisible(true)}>
-          <Text style={styles.headerBtnText}>Filters</Text>
-        </TouchableOpacity>
+
+      {/* Search Bar */}
+      <View style={styles.searchSection}>
+        <View style={styles.searchBarContainer}>
+          <Search size={20} color="#666" style={styles.searchIconStyle} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search products..."
+            placeholderTextColor="#999"
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+          />
+        </View>
       </View>
-      {/* Filter Modal Triggered by Filters Button */}
+
+      {/* Sort and Filter Controls */}
+      <View style={styles.controlsRow}>
+        <TouchableOpacity 
+          style={styles.sortBtn} 
+          onPress={() => {
+            setSortAsc((asc) => {
+              setProducts(prev => [...prev].sort((a, b) => {
+                const cmp = (a.card_name || '').localeCompare(b.card_name || '');
+                return asc ? cmp : -cmp;
+              }));
+              return !asc;
+            });
+          }}
+        >
+          <Text style={styles.sortBtnText}>Sort A-Z {sortAsc ? '↑' : '↓'}</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.filterBtn} 
+          onPress={() => setFilterModalVisible(true)}
+        >
+          <Text style={styles.filterBtnText}>Filters</Text>
+        </TouchableOpacity>
+        
+        <View style={styles.resultCount}>
+          <Text style={styles.resultCountText}>{filteredProducts.length} results</Text>
+        </View>
+      </View>
+
+      {/* Filter Modal */}
       <Modal
         visible={filterModalVisible}
         animationType="slide"
         transparent
         onRequestClose={() => setFilterModalVisible(false)}
       >
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} onPress={() => setFilterModalVisible(false)} />
-        <View style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '70%',
-          backgroundColor: Colors.white,
-          borderTopLeftRadius: 18,
-          borderTopRightRadius: 18,
-          flexDirection: 'row',
-          overflow: 'hidden',
-        }}>
-          {/* Left: Tabs */}
-          <View style={{ width: 120, backgroundColor: '#f7f8fa', borderTopLeftRadius: 18, paddingTop: 24 }}>
-            <Text style={{ fontWeight: 'bold', fontSize: 18, color: Colors.primary, marginLeft: 16, marginBottom: 24 }}>Filters</Text>
-            {filterCategories.map(cat => (
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setFilterModalVisible(false)} />
+          <View style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filters</Text>
               <TouchableOpacity
-                key={cat.key}
-                style={{ paddingVertical: 14, paddingHorizontal: 12, backgroundColor: selectedCategory === cat.key ? '#fff' : 'transparent', borderLeftWidth: selectedCategory === cat.key ? 4 : 0, borderLeftColor: Colors.primary }}
-                onPress={() => setSelectedCategory(cat.key)}
+                style={styles.closeBtn}
+                onPress={() => setFilterModalVisible(false)}
               >
-                <Text style={{ color: selectedCategory === cat.key ? Colors.primary : Colors.gray, fontWeight: selectedCategory === cat.key ? 'bold' : '600', fontSize: 15 }}>{cat.label}</Text>
+                <Text style={styles.closeBtnText}>✕</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-          {/* Right: Options */}
-          <View style={{ flex: 1, padding: 18, paddingTop: 24 }}>
-            {/* Cross button at top right */}
-            <TouchableOpacity
-              style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => setFilterModalVisible(false)}
-            >
-              <Text style={{ fontSize: 22, color: Colors.gray, fontWeight: 'bold' }}>×</Text>
-            </TouchableOpacity>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 16 }}>
-              {filterOptions[selectedCategory] && filterOptions[selectedCategory].length > 0 ? (
-                filterOptions[selectedCategory].map((option: string) => (
+            </View>
+
+            <View style={styles.modalBody}>
+              {/* Filter Categories */}
+              <View style={styles.filterSidebar}>
+                {filterCategories.map(cat => (
                   <TouchableOpacity
-                    key={option}
-                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f4f7fb', borderRadius: 10, padding: 14, marginBottom: 12 }}
-                    onPress={() => toggleFilterValue(selectedCategory, option)}
-                    activeOpacity={0.7}
+                    key={cat.key}
+                    style={[
+                      styles.filterTab,
+                      selectedCategory === cat.key && styles.activeFilterTab
+                    ]}
+                    onPress={() => setSelectedCategory(cat.key)}
                   >
-                    <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: multiFilterValues[selectedCategory]?.includes(option) ? Colors.primary : '#bbb', backgroundColor: multiFilterValues[selectedCategory]?.includes(option) ? Colors.primary : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                      {multiFilterValues[selectedCategory]?.includes(option) && (
-                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>✓</Text>
-                      )}
-                    </View>
-                    <Text style={{ fontSize: 16, color: Colors.black }}>{option}</Text>
+                    <Text style={[
+                      styles.filterTabText,
+                      selectedCategory === cat.key && styles.activeFilterTabText
+                    ]}>
+                      {cat.label}
+                    </Text>
                   </TouchableOpacity>
-                ))
-              ) : (
-                <Text style={{ color: Colors.gray, fontSize: 15, textAlign: 'center', marginTop: 32 }}>No options available</Text>
-              )}
-            </ScrollView>
-          </View>
-          {/* Bottom Buttons (outside sidebar, full width at bottom) */}
-          <View style={{ position: 'absolute', left: 120, right: 0, bottom: 0, backgroundColor: Colors.white, padding: 18, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#eee' }}>
-            <TouchableOpacity
-              style={{ backgroundColor: '#f6f6f6', borderRadius: 10, paddingVertical: 16, paddingHorizontal: 24, flex: 1, marginRight: 10, borderWidth: 1, borderColor: '#eee' }}
-              onPress={clearAllFilters}
-            >
-              <Text style={{ color: Colors.primary, fontWeight: 'bold', fontSize: 16, textAlign: 'center' }}>Clear Filters</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{ backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 16, paddingHorizontal: 24, flex: 1, marginLeft: 10 }}
-              onPress={() => setFilterModalVisible(false)}
-            >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16, textAlign: 'center' }}>Apply Filter</Text>
-            </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Filter Options */}
+              <View style={styles.filterOptions}>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {filterOptions[selectedCategory] && filterOptions[selectedCategory].length > 0 ? (
+                    filterOptions[selectedCategory].map((option: string) => (
+                      <TouchableOpacity
+                        key={option}
+                        style={styles.filterOption}
+                        onPress={() => toggleFilterValue(selectedCategory, option)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[
+                          styles.checkbox,
+                          multiFilterValues[selectedCategory]?.includes(option) && styles.checkedBox
+                        ]}>
+                          {multiFilterValues[selectedCategory]?.includes(option) && (
+                            <Text style={styles.checkmark}>✓</Text>
+                          )}
+                        </View>
+                        <Text style={styles.optionText}>{option}</Text>
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <View style={styles.noOptionsContainer}>
+                      <Text style={styles.noOptionsText}>No options available</Text>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
+            </View>
+
+            {/* Modal Footer */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.clearBtn}
+                onPress={clearAllFilters}
+              >
+                <Text style={styles.clearBtnText}>Clear All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.applyBtn}
+                onPress={() => setFilterModalVisible(false)}
+              >
+                <Text style={styles.applyBtnText}>Apply Filters</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
-      {/* Rest of the page */}
-      <Text style={styles.subtitle}>Total {filteredProducts.length} Offers Available</Text>
-      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+
+      {/* Products List */}
+      <ScrollView 
+        contentContainerStyle={styles.productsContainer} 
+        showsVerticalScrollIndicator={false}
+      >
         {filteredProducts.map((product, index) => {
-          const [startColor, endColor] = getGradientForIndex(index);
+          const isSelected = selectedForCompare.some((c) => c.id === product.id);
           return (
-            <View key={product.id} style={styles.card}>
-              <LinearGradient colors={[startColor, endColor]} style={styles.cardContent}>
-              <View style={styles.cardHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  {/* Bank Name (only for Credit Cards) */}
-                  {category === 'Credit Cards' && product.bank_name && (
-                    <Text style={styles.bankName}>{product.bank_name}</Text>
-                  )}
-                  {/* Card Name */}
+            <TouchableOpacity
+              key={product.id}
+              style={[styles.productCard, isSelected && styles.selectedCard]}
+              activeOpacity={0.95}
+              onPress={() => router.push({ pathname: '/products/details/[id]', params: { id: product.id } })}
+            >
+              {/* Earning Badge */}
+              <View style={styles.earningBadge}>
+                <Text style={styles.earningText}>
+                  Earn up to <Text style={styles.earningAmount}>₹{product.payout_str || '1,900'}</Text>
+                </Text>
+              </View>
+
+              {/* Card Header */}
+              <View style={styles.cardHeader}>
+                <Image 
+                  source={product.Image_url ? { uri: product.Image_url } : require('../../../assets/images/CardTemplate.png')} 
+                  style={styles.cardImage} 
+                />
+                <View style={styles.cardInfo}>
+                  <Text style={styles.bankName}>{product.bank_name || ''}</Text>
                   <Text style={styles.cardName}>{product.card_name}</Text>
                 </View>
-                <Image source={CARD_IMAGE} style={styles.cardImage} />
+                <TouchableOpacity
+                  style={styles.infoButton}
+                  onPress={() => router.push({ pathname: '/products/details/[id]', params: { id: product.id } })}
+                >
+                  <Info size={20} color="#666" />
+                </TouchableOpacity>
               </View>
-              
-              {/* Fees Row (only for Credit Cards) */}
+
+              {/* Fees Section for Credit Cards */}
               {category === 'Credit Cards' && (
-                <View style={styles.feeRow}>
-                  <View style={styles.feeBox}>
+                <View style={styles.feesSection}>
+                  <View style={styles.feeItem}>
                     <Text style={styles.feeLabel}>Joining Fee</Text>
-                    <Text style={styles.feeValue}>{product.joining_fees || 'Zero'}</Text>
+                    <Text style={styles.feeValue}>{product.joining_fees || 'Free'}</Text>
                   </View>
-                  <View style={styles.feeBox}>
-                    <Text style={styles.feeLabel}>Renewal Fee</Text>
-                    <Text style={styles.feeValue}>{product.renewal_fees || 'Zero'}</Text>
+                  <View style={styles.feeItem}>
+                    <Text style={styles.feeLabel}>Annual Fee</Text>
+                    <Text style={styles.feeValue}>{product.renewal_fees || 'Free'}</Text>
                   </View>
                 </View>
               )}
-              
+
               {/* Benefits */}
               <View style={styles.benefitsSection}>
-                {Array.isArray(product.benefits) && product.benefits.slice(0,2).map((benefit: string, idx: number) => (
-                  <View key={idx} style={styles.benefitRow}>
-                    <View style={styles.benefitIconCircle}>
-                      <Text style={styles.benefitIcon}>{idx === 0 ? '🎟️' : '⭐'}</Text>
-                    </View>
+                {Array.isArray(product.benefits) && product.benefits.slice(0, 3).map((benefit: string, idx: number) => (
+                  <View key={idx} style={styles.benefitItem}>
+                    <BadgePercent size={14} color={Colors.primary} />
                     <Text style={styles.benefitText}>{benefit}</Text>
                   </View>
                 ))}
               </View>
-              
-              {/* Details Link */}
-              <TouchableOpacity style={styles.detailsLinkRow} activeOpacity={0.7} onPress={() => router.push({ pathname: '/products/details/[id]', params: { id: product.id } })}>
-                <Text style={styles.detailsLink}>View all Details and Benefits</Text>
-                <Text style={styles.detailsArrow}>{'›'}</Text>
-              </TouchableOpacity>
-              
-              {/* Payout and Sell Button Row */}
-              <View style={styles.payoutRow}>
-                <View style={{display:'flex'}}>
-                  <Text style={styles.payoutLabel}>Payout</Text>
-                  <Text style={styles.payoutValue}>Upto ₹ {product.payout_str || 'Upto ₹1900'}</Text>
-                </View>
-                <TouchableOpacity style={styles.sellBtn} activeOpacity={0.85}>
-                  <Text style={styles.sellBtnText}>Sell Now</Text>
+
+              {/* Action Buttons */}
+              <View style={styles.actionRow}>
+                {category === 'Credit Cards' && (
+                  <TouchableOpacity
+                    style={[styles.compareButton, isSelected && styles.compareButtonSelected]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleCompareSelect(product);
+                    }}
+                  >
+                    <CheckSquare size={16} color={isSelected ? '#fff' : Colors.primary} />
+                    <Text style={[styles.compareButtonText, isSelected && styles.compareButtonTextSelected]}>
+                      Compare
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity 
+                  style={styles.shareButton} 
+                  onPress={() => shareProduct({ product, user: userDetails })}
+                >
+                  <Text style={styles.shareButtonText}>Share</Text>
+                  <Share2 size={16} color="#fff" />
                 </TouchableOpacity>
               </View>
-            </LinearGradient>
-          </View>
-        );
-      })}
+            </TouchableOpacity>
+          );
+        })}
+
         {filteredProducts.length === 0 && (
-          <Text style={{ textAlign: 'center', color: Colors.gray, marginTop: 32, fontSize: 16 }}>No products found in this category.</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>No products found</Text>
+            <Text style={styles.emptyStateSubtext}>Try adjusting your search or filters</Text>
+          </View>
         )}
       </ScrollView>
+
+      {/* Compare Button */}
+      {selectedForCompare.length === 2 && (
+        <View style={styles.compareFloatingContainer}>
+          <TouchableOpacity
+            style={styles.compareFloatingBtn}
+            onPress={() => router.push(`/products/compare?ids=${selectedForCompare.map(c => c.id).join(',')}`)}
+          >
+            <Text style={styles.compareFloatingText}>Compare Selected Cards</Text>
+            <CheckSquare size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Compare Limit Message */}
+      {showCompareLimitMsg && (
+        <View style={styles.limitMessageContainer}>
+          <View style={styles.limitMessage}>
+            <Text style={styles.limitMessageText}>You can only select 2 cards to compare</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -324,243 +468,525 @@ export default function ProductListByCategory() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
-    paddingTop: 16,
+    backgroundColor: '#f8f9fa',
   },
-  centered: {
+  loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: '#f8f9fa',
   },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    // marginLeft: 16,
-  },
-  backIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f0f2f5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-    shadowColor: Colors.shadow,
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  backIcon: {
-    fontSize: 18,
-    color: Colors.primary,
-    fontWeight: 'bold',
-  },
-  backText: {
-    color: Colors.primary,
+  loadingText: {
+    marginTop: 16,
     fontSize: 16,
-    fontWeight: '600',
+    color: '#666',
+    fontWeight: '500',
   },
+  
+  // Header Styles
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 18,
-    paddingTop: 42,
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    paddingBottom: 20,
     backgroundColor: Colors.primary,
-    borderBottomWidth: 0,
-    // No border for colored header
+  },
+  backBtn: {
+    marginRight: 16,
+  },
+  backIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backIcon: {
+    fontSize: 20,
+    color: '#fff',
+    fontWeight: 'bold',
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.white,
-    letterSpacing: 0.2,
-    marginLeft: 12,
+    color: '#fff',
+    flex: 1,
   },
-  headerActions: {
+  
+  // Search Section
+  searchSection: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    backgroundColor: '#fff',
+  },
+  searchBarContainer: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'center',
+    backgroundColor: '#f5f6f7',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  headerBtn: {
-    backgroundColor: Colors.white,
-    borderRadius: 10,
+  searchIconStyle: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+  },
+  
+  // Controls Row
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    gap: 12,
+  },
+  sortBtn: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderWidth:1,
-    borderColor:'black'
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
-  headerBtnText: {
-    color: 'balck',
+  sortBtnText: {
+    color: '#495057',
     fontWeight: '600',
     fontSize: 14,
   },
-  sortFilterRow: {
+  filterBtn: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  filterBtnText: {
+    color: '#495057',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  resultCount: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  resultCountText: {
+    color: '#6c757d',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: '70%',
+    overflow: 'hidden',
+  },
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: Colors.white,
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: '#f0f0f0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f8f9fa',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtnText: {
+    fontSize: 18,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  modalBody: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  
+  // Filter Sidebar
+  filterSidebar: {
+    width: 140,
+    backgroundColor: '#f8f9fa',
+    paddingTop: 8,
+  },
+  filterTab: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRightWidth: 3,
+    borderRightColor: 'transparent',
+  },
+  activeFilterTab: {
+    backgroundColor: '#fff',
+    borderRightColor: Colors.primary,
+  },
+  filterTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6c757d',
+  },
+  activeFilterTabText: {
+    color: Colors.primary,
+  },
+  
+  // Filter Options
+  filterOptions: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#dee2e6',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  checkedBox: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  optionText: {
+    fontSize: 15,
+    color: '#333',
+    flex: 1,
+  },
+  noOptionsContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  noOptionsText: {
+    fontSize: 16,
+    color: '#6c757d',
+  },
+  
+  // Modal Footer
+  modalFooter: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
     gap: 12,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginLeft: 16,
-    marginBottom: 2,
-    color: Colors.black,
-    letterSpacing: 0.2,
+  clearBtn: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
-  subtitle: {
-    fontSize: 20,
-    color: Colors.gray,
-    marginLeft: 16,
+  clearBtnText: {
+    color: '#6c757d',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  applyBtn: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  applyBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  
+  // Products Container
+  productsContainer: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  
+  // Product Card
+  productCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
     marginBottom: 16,
-  },
-  list: {
-    paddingHorizontal: 8,
-    paddingBottom: 32,
-  },
-  card: {
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-    overflow: 'hidden',
-    borderWidth:1,
-    borderColor:'#afafaf'
-  },
-  cardContent: {
     padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  cardHeaderRow: {
+  selectedCard: {
+    borderColor: Colors.primary,
+  },
+  
+  // Earning Badge
+  earningBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#e8f5e9',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 16,
+  },
+  earningText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2e7d32',
+  },
+  earningAmount: {
+    fontWeight: 'bold',
+    color: '#d32f2f',
+  },
+  
+  // Card Header
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  cardImage: {
+    width: 100,
+    height: 80,
+    resizeMode: 'contain',
+    borderRadius: 6,
+    backgroundColor: '#f8f9fa',
+  },
+  cardInfo: {
+    flex: 1,
+    marginLeft: 16,
   },
   bankName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.black,
-    marginBottom: 2,
-    letterSpacing: 0.1,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
   },
   cardName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.black,
-    letterSpacing: 0.1,
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
   },
-  cardImage: {
-    width: 90,
-    height: 60,
-    resizeMode: 'contain',
-    marginLeft: 12,
-    borderRadius: 8,
+  infoButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f8f9fa',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  feeRow: {
+  
+  // Fees Section
+  feesSection: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 16,
     gap: 16,
   },
-  feeBox: {
+  feeItem: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: '#f8f9fa',
     borderRadius: 8,
     padding: 12,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
   },
   feeLabel: {
     fontSize: 12,
-    color: Colors.gray,
+    color: '#666',
     marginBottom: 4,
+    fontWeight: '500',
   },
   feeValue: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: Colors.black,
+    color: '#333',
   },
+  
+  // Benefits Section
   benefitsSection: {
-    marginBottom: 18,
+    marginBottom: 20,
   },
-  benefitRow: {
+  benefitItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  benefitIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  benefitIcon: {
-    fontSize: 16,
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   benefitText: {
-    fontSize: 15,
-    color: Colors.black,
+    fontSize: 13,
+    color: '#555',
+    marginLeft: 8,
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 18
   },
-  detailsLinkRow: {
+  
+  // Action Row
+  actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
+    gap: 12,
   },
-  detailsLink: {
-    color: Colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
-    marginRight: 4,
-  },
-  detailsArrow: {
-    color: Colors.primary,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  payoutRow: {
+  compareButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 6,
   },
-  payoutLabel: {
-    fontSize: 15,
-    color: Colors.gray,
-    marginBottom: 4,
-  },
-  payoutValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.black,
-  },
-  sellBtn: {
+  compareButtonSelected: {
     backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    borderColor: Colors.primary,
   },
-  sellBtnText: {
-    color: Colors.white,
+  compareButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  compareButtonTextSelected: {
+    color: '#fff',
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 6,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  shareButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  
+  // Compare Floating Button
+  compareFloatingContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    zIndex: 1000,
+  },
+  compareFloatingBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    gap: 10,
+  },
+  compareFloatingText: {
+    fontSize: 16,
     fontWeight: 'bold',
-    fontSize: 15,
+    color: '#fff',
+  },
+  
+  // Compare Limit Message
+  limitMessageContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    zIndex: 2000,
+  },
+  limitMessage: {
+    backgroundColor: '#333',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginHorizontal: 40,
+  },
+  limitMessageText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
